@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#7c4dff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="家計簿">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>家計簿</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Zen+Maru+Gothic:wght@400;500;700&display=swap">
+<style>
+/* Layout: 水玉の背景に、太い縁取りとずらした影のカードを並べる。月ビューは合計と前月比を上に、年ビューは積み上げ棒グラフを中心にする。狭い画面では1列。 */
+:root {
+  --bg: #fff1a6;
+  --dot: #ffe27a;
+  --surface: #ffffff;
+  --surface-2: #f4efff;
+  --fg: #231942;
+  --muted: #62578a;
+  --ink: #231942;
+  --line: #d9d0f0;
+  --accent: #ff5d9e;
+  --accent-fg: #231942;
+  --yellow: #ffd23f;
+  --on-yellow: #231942;
+  --hero: #7c4dff;
+  --hl: #ffe27a;
+  --up-bg: #ffd1e0; --up-fg: #9c0f3d;
+  --down-bg: #c9f7e6; --down-fg: #075f45;
+  --same-bg: #ece7fa; --same-fg: #4b4170;
+  --t1: #c9f7e6; --t2: #ffe9a8; --t3: #d6e4ff;
+  --font-display: 'Mochiy Pop One', 'Hiragino Maru Gothic ProN', 'Yu Gothic', sans-serif;
+  --font-body: 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', 'Yu Gothic', system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1c1536; --dot: #261d49; --surface: #2b2250; --surface-2: #382f6b; --fg: #ffffff; --muted: #c4baec;
+    --ink: #080515; --line: #4a3f84; --accent: #ff7ab1; --accent-fg: #1c1536; --hero: #8b5cf6; --hl: #5b3fd0;
+    --up-bg: #5e1d41; --up-fg: #ffbad3; --down-bg: #0f5446; --down-fg: #98f7d7; --same-bg: #3f3675; --same-fg: #d9d2f5;
+    --t1: #0f5446; --t2: #5c4a12; --t3: #1f3b80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1c1536; --dot: #261d49; --surface: #2b2250; --surface-2: #382f6b; --fg: #ffffff; --muted: #c4baec;
+  --ink: #080515; --line: #4a3f84; --accent: #ff7ab1; --accent-fg: #1c1536; --hero: #8b5cf6; --hl: #5b3fd0;
+  --up-bg: #5e1d41; --up-fg: #ffbad3; --down-bg: #0f5446; --down-fg: #98f7d7; --same-bg: #3f3675; --same-fg: #d9d2f5;
+  --t1: #0f5446; --t2: #5c4a12; --t3: #1f3b80; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--dot) 2.5px, transparent 3px);
+  background-size: 24px 24px;
+  color: var(--fg);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.6; font-weight: 500;
+  padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+
+.app { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+
+/* header */
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+h1 { font-family: var(--font-display); font-weight: 400; font-size: 34px; line-height: 1.1; margin: 0; letter-spacing: 0.06em; text-shadow: 3px 3px 0 var(--accent); }
+.sub { margin: 6px 0 0; color: var(--muted); font-size: 13px; font-weight: 700; }
+
+.seg { display: inline-flex; background: var(--surface); border: 3px solid var(--ink); border-radius: 999px; padding: 3px; gap: 2px; box-shadow: 3px 3px 0 var(--ink); }
+.seg button { border: 0; background: transparent; border-radius: 999px; padding: 5px 20px; font-weight: 700; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--yellow); color: var(--on-yellow); }
+.seg.big button { padding: 6px 26px; font-size: 17px; font-family: var(--font-display); font-weight: 400; }
+
+.navrow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.period { display: flex; align-items: center; gap: 2px; background: var(--surface); border: 3px solid var(--ink); border-radius: 999px; padding: 3px; box-shadow: 3px 3px 0 var(--ink); }
+.period button { width: 38px; height: 38px; border-radius: 50%; border: 0; background: transparent; font-size: 22px; line-height: 1; font-weight: 700; }
+.period button:hover { background: var(--surface-2); }
+#periodLabel { min-width: 7em; text-align: center; font-family: var(--font-display); font-size: 19px; }
+.btn { border: 3px solid var(--ink); border-radius: 14px; background: var(--surface); padding: 6px 14px; font-weight: 700; box-shadow: 3px 3px 0 var(--ink); transition: transform .08s, box-shadow .08s; }
+.btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.btn.primary { background: var(--accent); color: var(--accent-fg); padding: 10px 22px; font-size: 16px; }
+.btn.small { font-size: 13px; padding: 4px 12px; box-shadow: 2px 2px 0 var(--ink); }
+
+.banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; background: var(--surface); border: 3px dashed var(--ink); border-radius: 14px; padding: 10px 14px; font-size: 13px; font-weight: 700; }
+
+/* hero */
+.hero { background: var(--hero); color: #ffffff; border: 3px solid var(--ink); border-radius: 22px; box-shadow: 6px 6px 0 var(--ink); padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.hero-lab { font-weight: 700; font-size: 14px; color: #efe8ff; }
+.hero-val { font-family: var(--font-display); font-size: clamp(34px, 10vw, 52px); line-height: 1.15; overflow-wrap: anywhere; }
+.hero-cmp { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-weight: 700; }
+.hero-cmp .pct { background: #ffffff; color: #231942; border: 2px solid var(--ink); border-radius: 999px; padding: 1px 10px; font-size: 13px; }
+.hero-note { margin: 0; font-size: 13px; color: #efe8ff; }
+.vs { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.vsrow { display: grid; grid-template-columns: 3.2em minmax(0, 1fr) 6.5em; align-items: center; gap: 10px; font-weight: 700; font-size: 14px; }
+.vsrow .va { text-align: right; }
+.track { height: 20px; border: 3px solid var(--ink); border-radius: 999px; background: rgba(255, 255, 255, 0.22); overflow: hidden; }
+.fill { display: block; height: 100%; border-radius: 999px; }
+.fill.prev { background: #ffffff; }
+.fill.now { background: var(--yellow); }
+
+.delta { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; padding: 2px 10px; border-radius: 999px; border: 2px solid var(--ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.delta.up { background: var(--up-bg); color: var(--up-fg); }
+.delta.down { background: var(--down-bg); color: var(--down-fg); }
+.delta.same { background: var(--same-bg); color: var(--same-fg); }
+.delta.none { border-color: transparent; color: var(--muted); background: transparent; }
+
+/* tiles */
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.tile { border: 3px solid var(--ink); border-radius: 18px; padding: 12px 14px; box-shadow: 4px 4px 0 var(--ink); min-width: 0; }
+.tile.t1 { background: var(--t1); } .tile.t2 { background: var(--t2); } .tile.t3 { background: var(--t3); }
+.tile .lab { font-size: 12px; font-weight: 700; color: var(--muted); }
+.tile .val { font-family: var(--font-display); font-size: clamp(15px, 4.2vw, 22px); line-height: 1.3; overflow-wrap: anywhere; }
+.tile .s { font-size: 11px; color: var(--muted); font-weight: 700; line-height: 1.4; }
+@media (max-width: 520px) { .tiles { grid-template-columns: 1fr; } .tile { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 10px; } .tile .s { grid-column: 1 / -1; } }
+
+/* layout */
+.layout { display: flex; flex-direction: column; gap: 18px; }
+.col { display: contents; }
+#mChartCard { order: 1; } #listCard { order: 3; } #catCard { order: 4; }
+@media (min-width: 860px) {
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+}
+.card { background: var(--surface); border: 3px solid var(--ink); border-radius: 22px; box-shadow: 6px 6px 0 var(--ink); padding: 16px 16px 18px; min-width: 0; }
+.card h2 { font-family: var(--font-display); font-weight: 400; font-size: 18px; margin: 0 0 12px; display: inline-block; background: linear-gradient(transparent 58%, var(--hl) 58%); padding: 0 4px; }
+
+/* donut */
+.chart-wrap { position: relative; width: min(100%, 300px); margin: 4px auto 14px; aspect-ratio: 1; }
+.chart-wrap svg { display: block; width: 100%; height: 100%; }
+.slice { fill: none; stroke-width: 30; cursor: pointer; transition: stroke-width .15s, opacity .15s; }
+.slice:hover, .slice:focus-visible { stroke-width: 35; outline: none; }
+.slice.sel { stroke-width: 38; }
+.chart-wrap.has-sel .slice:not(.sel) { opacity: .35; }
+.ring-empty { fill: none; stroke: var(--line); stroke-width: 30; }
+.rim { fill: none; stroke: var(--ink); stroke-width: 3; }
+.center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; pointer-events: none; padding: 0 24%; }
+.center .c1 { font-size: 12px; font-weight: 700; color: var(--muted); line-height: 1.3; }
+.center .c2 { font-family: var(--font-display); font-size: 21px; line-height: 1.3; overflow-wrap: anywhere; }
+.center .c3 { font-size: 12px; font-weight: 700; color: var(--muted); }
+
+.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.legend button { width: 100%; display: grid; grid-template-columns: 16px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 8px 10px; background: transparent; border: 2px solid transparent; border-radius: 14px; text-align: left; }
+.legend.nodiff button { grid-template-columns: 16px minmax(0, 1fr) auto; }
+.legend button:hover { background: var(--surface-2); }
+.legend button.sel { background: var(--surface-2); border-color: var(--ink); }
+.dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--ink); display: inline-block; flex: none; }
+.legend .nm { overflow-wrap: anywhere; font-weight: 700; line-height: 1.35; }
+.legend .pc { display: block; font-size: 12px; color: var(--muted); font-weight: 500; }
+.legend .am { text-align: right; font-weight: 700; }
+.empty { color: var(--muted); text-align: center; padding: 8px 0 4px; margin: 0; font-weight: 700; }
+
+/* form */
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 4px 0 14px; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); min-width: 0; }
+input[type="text"], input[type="date"], select {
+  width: 100%; min-width: 0; font-size: 16px; font-weight: 500; color: var(--fg); background: var(--surface-2);
+  border: 3px solid var(--ink); border-radius: 12px; padding: 7px 11px;
+}
+input:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+.err { color: var(--up-fg); background: var(--up-bg); border: 2px solid var(--ink); border-radius: 10px; padding: 6px 10px; font-size: 13px; font-weight: 700; margin: 0 0 12px; }
+.err:empty { display: none; }
+
+/* list */
+.day { margin: 0; padding: 12px 0 4px; font-size: 12px; color: var(--muted); font-weight: 700; }
+.rows { list-style: none; margin: 0; padding: 0; }
+.row { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto 34px; align-items: center; gap: 10px; padding: 8px 0; border-top: 2px dotted var(--line); }
+.row .cn { font-weight: 700; }
+.row .memo { display: block; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.row .amt { font-weight: 700; text-align: right; }
+.icon-btn { width: 34px; height: 34px; border: 2px solid transparent; border-radius: 10px; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; font-weight: 700; }
+.icon-btn:hover { background: var(--surface-2); border-color: var(--ink); color: var(--fg); }
+
+/* categories */
+details summary { cursor: pointer; font-family: var(--font-display); font-size: 18px; }
+details[open] summary { margin-bottom: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 2px solid var(--ink); border-radius: 999px; padding: 3px 4px 3px 10px; font-size: 13px; font-weight: 700; }
+.chip button { width: 22px; height: 22px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 14px; line-height: 1; font-weight: 700; }
+.chip button:hover { background: var(--line); color: var(--fg); }
+.cat-add { margin-top: 16px; padding-top: 16px; border-top: 2px dotted var(--line); display: flex; flex-direction: column; gap: 12px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatches button { width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--ink); }
+.swatches button[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--surface), 0 0 0 6px var(--ink); }
+.cap { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 8px; }
+
+/* year chart */
+.ychart { display: grid; grid-template-columns: 36px minmax(0, 1fr); column-gap: 6px; row-gap: 6px; }
+.yaxis { position: relative; height: 200px; }
+.ytick { position: absolute; right: 0; transform: translateY(50%); font-size: 10px; font-weight: 700; color: var(--muted); line-height: 1; white-space: nowrap; }
+.yplot { position: relative; height: 200px; border-bottom: 3px solid var(--ink); }
+.ygrid { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--line); }
+.ycols { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; padding: 0 2px; }
+.ycol { display: flex; align-items: flex-end; padding: 0; border: 0; background: transparent; border-radius: 8px 8px 0 0; }
+.ycol:hover { background: var(--surface-2); }
+.bar { width: 100%; display: flex; flex-direction: column-reverse; border: 3px solid var(--ink); border-bottom: 0; border-radius: 8px 8px 0 0; overflow: hidden; }
+.seg-bar { flex-basis: 0; flex-shrink: 1; min-height: 0; border-top: 2px solid var(--ink); }
+.seg-bar:first-child { border-top: 0; }
+.ylabels { grid-column: 2; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; padding: 0 2px; }
+.yl { text-align: center; white-space: nowrap; font-size: 10.5px; font-weight: 700; color: var(--muted); line-height: 1.6; border-radius: 999px; }
+.yl.now { background: var(--yellow); color: var(--on-yellow); }
+.hint { margin: 12px 0 0; font-size: 12px; font-weight: 700; color: var(--muted); }
+
+.ytable { list-style: none; margin: 0; padding: 0; }
+.yrow { width: 100%; display: grid; grid-template-columns: 3em minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 10px; background: transparent; border: 2px solid transparent; border-radius: 14px; text-align: left; }
+.yrow:hover { background: var(--surface-2); border-color: var(--ink); }
+.yrow .ym { font-weight: 700; }
+.yrow .yamt { text-align: right; font-weight: 700; }
+.yrow.zero .yamt { color: var(--muted); font-weight: 500; }
+
+/* goal + balance */
+.pair { display: flex; flex-direction: column; gap: 18px; }
+@media (min-width: 860px) { .pair { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); align-items: start; } }
+.gstats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.gs { background: var(--surface-2); border: 2px solid var(--ink); border-radius: 14px; padding: 8px 10px; min-width: 0; }
+.gs .lab { font-size: 11px; font-weight: 700; color: var(--muted); }
+.gs .val { font-family: var(--font-display); font-size: clamp(14px, 3.8vw, 19px); line-height: 1.3; overflow-wrap: anywhere; }
+.gs.ok .val { color: var(--down-fg); }
+.gs.over .val { color: var(--up-fg); }
+.gbar { height: 24px; border: 3px solid var(--ink); border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.gfill { height: 100%; border-radius: 999px; background: #1fd1a0; }
+.gfill.warn { background: var(--yellow); }
+.gfill.over { background: repeating-linear-gradient(135deg, #ff5d9e 0 10px, #ff8fbd 10px 20px); }
+.gticks { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; font-weight: 700; color: var(--muted); margin-top: 4px; }
+.gmsg { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 0; font-weight: 700; }
+.gpace { margin: 8px 0 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+.gform { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 2px dotted var(--line); }
+.gform label { flex: 1 1 170px; }
+.advice { margin-top: 14px; padding-top: 14px; border-top: 2px dotted var(--line); display: flex; flex-direction: column; gap: 10px; }
+.advice h3 { margin: 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+.tips { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 4px; }
+.muted { color: var(--muted); font-size: 12px; font-weight: 700; margin: 0; }
+.bal-val { font-family: var(--font-display); font-size: 28px; line-height: 1.2; overflow-wrap: anywhere; margin: 0 0 6px; }
+.gline { grid-column: 2 / -1; text-align: right; font-size: 12px; font-weight: 700; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px 12px; }
+.g-ok { color: var(--down-fg); }
+.g-over { color: var(--up-fg); }
+.g-bal { color: var(--muted); }
+.ygoal { position: absolute; left: 0; right: 0; border-top: 3px dashed var(--accent); pointer-events: none; z-index: 2; }
+.ygoal span { position: absolute; right: 0; bottom: 3px; background: var(--accent); color: var(--accent-fg); border: 2px solid var(--ink); border-radius: 999px; font-size: 10px; font-weight: 700; padding: 0 8px; line-height: 1.5; white-space: nowrap; }
+
+/* toast */
+.toast { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); max-width: 420px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--ink); color: #ffffff; border: 3px solid #ffffff; border-radius: 14px; padding: 10px 14px; font-weight: 700; z-index: 20; }
+.toast button { background: var(--yellow); color: var(--on-yellow); border: 0; border-radius: 999px; font-weight: 700; padding: 3px 12px; }
+
+@media (prefers-reduced-motion: reduce) { .slice, .btn { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <div>
+      <h1>家計簿</h1>
+      <p class="sub">支出をつけて、先月とくらべよう</p>
+    </div>
+  </header>
+
+      <form class="card" id="txForm" novalidate>
+    <h2>支出を追加</h2>
+    <div class="fields">
+      <label for="fDate">日付<input id="fDate" type="date"></label>
+      <label for="fAmount">金額（円）<input id="fAmount" type="text" inputmode="numeric" placeholder="例 1200" autocomplete="off"></label>
+      <label for="fCat">項目<select id="fCat"></select></label>
+      <label for="fMemo">メモ<input id="fMemo" type="text" maxlength="40" placeholder="任意" autocomplete="off"></label>
+    </div>
+    <p class="err" id="fErr" role="alert"></p>
+    <button class="btn primary" type="submit">追加する</button>
+  </form>
+
+
+  <div class="navrow">
+    <div class="seg big" id="modeSeg" role="group" aria-label="表示の切り替え">
+      <button type="button" data-mode="month" aria-pressed="true">月</button>
+      <button type="button" data-mode="year" aria-pressed="false">年</button>
+    </div>
+    <div class="period" role="group" aria-label="表示する期間">
+      <button id="prev" type="button" aria-label="前へ">‹</button>
+      <div id="periodLabel" aria-live="polite"></div>
+      <button id="next" type="button" aria-label="次へ">›</button>
+    </div>
+    <button class="btn small" id="goNow" type="button" hidden></button>
+  </div>
+
+  <div class="banner" id="sampleBanner" hidden>
+    <span>表示中の記録は例です。自由に編集して使えます。</span>
+    <button class="btn small" id="clearSample" type="button">例の記録を消す</button>
+  </div>
+
+  <div id="monthView" style="display:flex;flex-direction:column;gap:18px">
+    <section class="hero" id="mHero"></section>
+    <div class="pair">
+      <section class="card" id="goalCard">
+        <h2>今月の目標</h2>
+        <div id="gStatus"></div>
+        <form class="gform" id="goalForm" novalidate>
+          <label for="gInput">月の目標金額（円）<input id="gInput" type="text" inputmode="numeric" placeholder="例 150000" autocomplete="off"></label>
+          <button class="btn" type="submit">目標を保存</button>
+        </form>
+        <p class="muted" style="margin-top:8px">目標は毎月共通です。空欄で保存すると解除します。</p>
+        <p class="err" id="gErr" role="alert" style="margin-top:10px"></p>
+        <div class="advice">
+          <h3>かんたんチェック</h3>
+          <ul class="tips" id="tips"></ul>
+        </div>
+      </section>
+      <section class="card" id="balCard">
+        <h2>残金（手入力）</h2>
+        <p class="bal-val num" id="balVal"></p>
+        <p class="muted" id="balHint"></p>
+        <form class="gform" id="balForm" novalidate>
+          <label for="bInput">この月の残金（円）<input id="bInput" type="text" inputmode="text" placeholder="例 235000" autocomplete="off"></label>
+          <button class="btn" type="submit">保存</button>
+        </form>
+        <p class="err" id="bErr" role="alert" style="margin-top:10px"></p>
+      </section>
+    </div>
+    <div class="layout">
+      <div class="col">
+        <section class="card" id="mChartCard">
+          <h2>項目別の割合</h2>
+          <div class="chart-wrap" id="mChart"></div>
+          <ul class="legend" id="mLegend"></ul>
+        </section>
+
+        <section class="card" id="catCard">
+          <details>
+            <summary>項目の管理</summary>
+            <div class="chips" id="catList"></div>
+            <form class="cat-add" id="catForm" novalidate>
+              <label for="catName">新しい項目の名前
+                <input id="catName" type="text" maxlength="12" placeholder="例 ペット、教育費" autocomplete="off">
+              </label>
+              <div>
+                <div class="cap">グラフの色</div>
+                <div class="swatches" id="swatches"></div>
+              </div>
+              <p class="err" id="catErr" role="alert"></p>
+              <div><button class="btn primary" type="submit">項目を追加</button></div>
+            </form>
+          </details>
+        </section>
+      </div>
+
+      <div class="col">
+
+        <section class="card" id="listCard">
+          <h2>明細</h2>
+          <div id="txList"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="yearView" style="display:flex;flex-direction:column;gap:18px" hidden>
+    <section class="hero" id="yHero"></section>
+    <section class="tiles" id="yTiles"></section>
+    <section class="card">
+      <h2>月ごとの支出</h2>
+      <div id="yChart"></div>
+      <p class="hint">棒をタップすると、その月の詳細を開きます。色は項目ごと、ピンクの破線は月の目標です。</p>
+    </section>
+    <div class="layout">
+      <section class="card">
+        <h2>月ごとのプラマイと目標</h2>
+        <ul class="ytable" id="yTable"></ul>
+      </section>
+      <section class="card">
+        <h2>年間の項目別</h2>
+        <div class="chart-wrap" id="yPie"></div>
+        <ul class="legend nodiff" id="yLegend"></ul>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden>
+  <span id="toastMsg"></span>
+  <button type="button" id="undo">元に戻す</button>
+</div>
+
+<script>
+(function () {
+  var KEY = 'kakeibo-v2', OLD = 'kakeibo-v1';
+  var PALETTE = ['#ff5d9e', '#ff9a3c', '#ffd23f', '#1fd1a0', '#3b82ff', '#8b5cf6', '#00c2e0', '#ff6b4a', '#a3d900', '#c06cff'];
+
+  function $(s) { return document.querySelector(s); }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function yen(n) { return '¥' + Math.round(n).toLocaleString('ja-JP'); }
+  function sgn(n) { return n > 0 ? '+' : n < 0 ? '−' : '±'; }
+  function yenS(n) { return sgn(n) + yen(Math.abs(n)); }
+  function uid() { return Math.random().toString(36).slice(2, 9) + Date.now().toString(36); }
+  function todayStr() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function monthOf(s) { return s.slice(0, 7); }
+  function shiftMonth(ym, delta) {
+    var p = ym.split('-'); var d = new Date(+p[0], +p[1] - 1 + delta, 1);
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1);
+  }
+  function dayLabel(s) {
+    var p = s.split('-'); var d = new Date(+p[0], +p[1] - 1, +p[2]);
+    return (+p[1]) + '月' + (+p[2]) + '日（' + '日月火水木金土'.charAt(d.getDay()) + '）';
+  }
+  function delta(d) {
+    if (d == null) return '<span class="delta none">—</span>';
+    var cls = d > 0 ? 'up' : d < 0 ? 'down' : 'same';
+    var arrow = d > 0 ? '▲' : d < 0 ? '▼' : '＝';
+    return '<span class="delta ' + cls + '"><span aria-hidden="true">' + arrow + '</span>' + yenS(d) + '</span>';
+  }
+
+  /* ---------- data ---------- */
+  function seedCats() {
+    return [
+      { id: 'e1', name: '食費', color: '#ff9a3c' },
+      { id: 'e2', name: '日用品', color: '#1fd1a0' },
+      { id: 'e3', name: '交通費', color: '#3b82ff' },
+      { id: 'e4', name: '住居・光熱費', color: '#8b5cf6' },
+      { id: 'e5', name: '通信費', color: '#00c2e0' },
+      { id: 'e6', name: '娯楽・交際', color: '#ff5d9e' },
+      { id: 'e7', name: '医療・美容', color: '#ff6b4a' },
+      { id: 'e8', name: '衣服', color: '#ffd23f' },
+      { id: 'e9', name: 'その他', color: '#a3d900' }
+    ];
+  }
+  function seedTx(cats) {
+    var ids = {}; cats.forEach(function (c) { ids[c.id] = true; });
+    var items = [
+      [1, 'e4', 72000, '家賃', 0], [10, 'e4', 9300, '電気・ガス', 1], [5, 'e5', 6800, '携帯・ネット', 0],
+      [2, 'e1', 1480, 'スーパー', 1], [6, 'e1', 2350, 'ランチ', 1], [9, 'e1', 3120, 'スーパー', 1],
+      [12, 'e1', 980, 'コンビニ', 1], [15, 'e1', 2760, 'スーパー', 1], [20, 'e1', 3400, 'スーパー', 1], [24, 'e1', 4100, '外食', 1],
+      [3, 'e3', 3200, '定期券チャージ', 0], [16, 'e3', 640, '電車', 1],
+      [7, 'e2', 1980, '洗剤・ティッシュ', 1], [22, 'e2', 2400, '日用品まとめ買い', 1],
+      [8, 'e6', 5400, '友人と夕食', 1], [13, 'e6', 1800, '映画', 1], [26, 'e6', 7200, '飲み会', 1],
+      [11, 'e7', 2200, '薬局', 1], [14, 'e8', 7900, 'シャツ', 1], [27, 'e9', 1500, '雑費', 1]
+    ];
+    var mult = [1.0, 1.1, 0.92, 1.05, 0.97, 1.12];
+    var cur = todayStr().slice(0, 7), dayNow = new Date().getDate(), out = [];
+    for (var k = 0; k < mult.length; k++) {
+      var ym = shiftMonth(cur, -k);
+      items.forEach(function (it) {
+        if (!ids[it[1]]) return;
+        if (k === 0 && it[0] > dayNow) return;
+        var amt = it[4] ? Math.round(it[2] * mult[k] * (1 + (((it[0] * 7 + k * 3) % 5) - 2) * 0.04) / 10) * 10 : it[2];
+        out.push({ id: uid(), date: ym + '-' + pad(it[0]), cat: it[1], amount: amt, memo: it[3], sample: true });
+      });
+    }
+    return out;
+  }
+  function readKey(k) {
+    try {
+      var r = localStorage.getItem(k); if (!r) return null;
+      var d = JSON.parse(r);
+      if (d && Array.isArray(d.cats) && Array.isArray(d.tx)) return d;
+    } catch (e) {}
+    return null;
+  }
+  function load() {
+    var d = readKey(KEY); if (d) return d;
+    var old = readKey(OLD);
+    if (old) {
+      var seeds = seedCats(), byId = {};
+      seeds.forEach(function (c) { byId[c.id] = c; });
+      var cats = old.cats.filter(function (c) { return c.type !== 'income'; }).map(function (c) {
+        return { id: c.id, name: c.name, color: byId[c.id] ? byId[c.id].color : c.color };
+      });
+      var tx = old.tx.filter(function (t) { return t.type !== 'income' && !t.sample; }).map(function (t) {
+        return { id: t.id, date: t.date, cat: t.cat, amount: t.amount, memo: t.memo || '' };
+      });
+      if (old.tx.some(function (t) { return t.sample; })) {
+        seeds.forEach(function (c) { if (!cats.some(function (x) { return x.id === c.id; })) cats.push(c); });
+        tx = tx.concat(seedTx(cats));
+      }
+      return { cats: cats, tx: tx };
+    }
+    var c0 = seedCats();
+    return { cats: c0, tx: seedTx(c0) };
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {} }
+
+  var data = load();
+  if (typeof data.goal !== 'number') data.goal = 0;
+  if (!data.balances || typeof data.balances !== 'object') data.balances = {};
+  save();
+  var mode = 'month';
+  var cursor = todayStr().slice(0, 7);
+  var selM = null, selY = null;
+  var swatch = null;
+  var lastDeleted = null, toastTimer = null;
+
+  function catById(id) { return data.cats.filter(function (c) { return c.id === id; })[0]; }
+  function catInfo(id) { return catById(id) || { id: id, name: '(削除済み)', color: '#9a93b8' }; }
+  function monthTotal(ym) { var s = 0; data.tx.forEach(function (t) { if (monthOf(t.date) === ym) s += t.amount; }); return s; }
+  function yearTotal(y) { var s = 0; data.tx.forEach(function (t) { if (t.date.slice(0, 4) === String(y)) s += t.amount; }); return s; }
+  function catMap(pred) {
+    var m = {}; data.tx.forEach(function (t) { if (pred(t)) m[t.cat] = (m[t.cat] || 0) + t.amount; }); return m;
+  }
+
+  /* ---------- donut + legend ---------- */
+  function drawPie(wrapEl, legEl, list, total, sel, centerLabel, emptyMsg) {
+    if (sel && !list.some(function (x) { return x.id === sel; })) sel = null;
+    var pos = list.filter(function (x) { return x.amount > 0; });
+    var R = 74, C = 2 * Math.PI * R, acc = 0;
+    var svg = '<svg viewBox="0 0 200 200" role="img" aria-label="項目別の割合"><circle class="ring-empty" cx="100" cy="100" r="' + R + '"/>';
+    pos.forEach(function (x) {
+      var len = x.amount / total * C, gap = pos.length > 1 ? Math.min(2, len * 0.5) : 0;
+      svg += '<circle class="slice' + (x.id === sel ? ' sel' : '') + '" data-id="' + esc(x.id) + '" cx="100" cy="100" r="' + R + '" stroke="' + x.color + '"' +
+        ' stroke-dasharray="' + (len - gap).toFixed(3) + ' ' + C.toFixed(3) + '" stroke-dashoffset="' + (-acc).toFixed(3) + '"' +
+        ' transform="rotate(-90 100 100)" tabindex="0" role="button" aria-label="' + esc(x.name) + ' ' + yen(x.amount) + ' ' + Math.round(x.amount / total * 100) + '%"/>';
+      acc += len;
+    });
+    svg += '<circle class="rim" cx="100" cy="100" r="' + (R + 15.5) + '"/><circle class="rim" cx="100" cy="100" r="' + (R - 15.5) + '"/></svg>';
+    var center;
+    if (!pos.length) {
+      center = '<div class="c1">' + centerLabel + '</div><div class="c2">なし</div>';
+    } else if (sel) {
+      var s = list.filter(function (x) { return x.id === sel; })[0];
+      center = '<div class="c1">' + esc(s.name) + '</div><div class="c2 num">' + yen(s.amount) + '</div><div class="c3 num">' + (s.amount / total * 100).toFixed(1) + '%</div>';
+    } else {
+      center = '<div class="c1">' + centerLabel + '</div><div class="c2 num">' + yen(total) + '</div>';
+    }
+    wrapEl.className = 'chart-wrap' + (sel ? ' has-sel' : '');
+    wrapEl.innerHTML = svg + '<div class="center">' + center + '</div>';
+
+    if (!list.length) { legEl.innerHTML = '<li><p class="empty">' + emptyMsg + '</p></li>'; return sel; }
+    legEl.innerHTML = list.map(function (x) {
+      return '<li><button type="button" data-id="' + esc(x.id) + '" class="' + (x.id === sel ? 'sel' : '') + '">' +
+        '<span class="dot" style="background:' + x.color + '"></span>' +
+        '<span class="nm">' + esc(x.name) + '<span class="pc num">' + (total > 0 ? (x.amount / total * 100).toFixed(1) : '0.0') + '%</span></span>' +
+        '<span class="am num">' + yen(x.amount) + '</span>' +
+        (x.diff !== undefined ? '<span>' + delta(x.diff) + '</span>' : '') + '</button></li>';
+    }).join('');
+    return sel;
+  }
+
+  /* ---------- month view ---------- */
+  function vsRow(label, amt, mx, cls) {
+    return '<div class="vsrow"><span>' + label + '</span><span class="track"><span class="fill ' + cls + '" style="width:' + (amt / mx * 100).toFixed(1) + '%"></span></span><span class="va num">' + yen(amt) + '</span></div>';
+  }
+  function pctText(diff, base) {
+    var p = diff / base * 100;
+    return sgn(p) + Math.abs(p).toFixed(1) + '%';
+  }
+
+  function renderMonth() {
+    var ym = cursor, pm = shiftMonth(ym, -1);
+    var total = monthTotal(ym), ptotal = monthTotal(pm), hasPrev = ptotal > 0;
+    var isNow = ym === todayStr().slice(0, 7), mnum = +ym.slice(5);
+    var h = '<div class="hero-lab">' + mnum + '月の支出' + (isNow ? '（途中経過）' : '') + '</div><div class="hero-val num">' + yen(total) + '</div>';
+    if (hasPrev) {
+      var diff = total - ptotal, mx = Math.max(total, ptotal) || 1;
+      h += '<div class="hero-cmp"><span>前月比</span>' + delta(diff) + '<span class="pct num">' + pctText(diff, ptotal) + '</span></div>' +
+        '<div class="vs">' + vsRow((+pm.slice(5)) + '月', ptotal, mx, 'prev') + vsRow(mnum + '月', total, mx, 'now') + '</div>';
+      if (isNow) h += '<p class="hero-note">今月はまだ途中なので、月末までは前月より少なく見えます。</p>';
+    } else {
+      h += '<p class="hero-note">前月の記録がないため、比較はまだできません。</p>';
+    }
+    $('#mHero').innerHTML = h;
+
+    var cm = catMap(function (t) { return monthOf(t.date) === ym; });
+    var pmap = catMap(function (t) { return monthOf(t.date) === pm; });
+    var ids = Object.keys(cm); Object.keys(pmap).forEach(function (id) { if (ids.indexOf(id) < 0) ids.push(id); });
+    var list = ids.map(function (id) {
+      var c = catInfo(id), a = cm[id] || 0;
+      return { id: id, name: c.name, color: c.color, amount: a, prevAmt: pmap[id] || 0, diff: hasPrev ? a - (pmap[id] || 0) : undefined };
+    });
+    list.sort(function (a, b) { return b.amount - a.amount || b.prevAmt - a.prevAmt; });
+    selM = drawPie($('#mChart'), $('#mLegend'), list, total, selM, '支出合計', '記録を追加すると、ここに内訳が表示されます。');
+    $('#mLegend').className = 'legend' + (hasPrev ? '' : ' nodiff');
+    renderGoal(ym, total, cm, pmap, hasPrev);
+    renderBalance(ym);
+
+    var txs = data.tx.filter(function (t) { return monthOf(t.date) === ym; }).sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+    var box = $('#txList');
+    if (!txs.length) { box.innerHTML = '<p class="empty">この月の記録はまだありません。フォームから追加できます。</p>'; return; }
+    var html = '', curD = '';
+    txs.forEach(function (t) {
+      if (t.date !== curD) { if (curD) html += '</ul>'; curD = t.date; html += '<h3 class="day">' + dayLabel(t.date) + '</h3><ul class="rows">'; }
+      var c = catInfo(t.cat);
+      html += '<li class="row"><span class="dot" style="background:' + c.color + '"></span>' +
+        '<div><span class="cn">' + esc(c.name) + '</span>' + (t.memo ? '<span class="memo">' + esc(t.memo) + '</span>' : '') + '</div>' +
+        '<span class="amt num">' + yen(t.amount) + '</span>' +
+        '<button class="icon-btn" type="button" data-del="' + esc(t.id) + '" aria-label="この記録を削除">×</button></li>';
+    });
+    box.innerHTML = html + '</ul>';
+  }
+
+  /* ---------- goal, balance, advice ---------- */
+  function sy(n) { return (n < 0 ? '−' : '') + yen(Math.abs(n)); }
+  function daysInMonth(ym) { var p = ym.split('-'); return new Date(+p[0], +p[1], 0).getDate(); }
+  function monthCat(ym) { return catMap(function (t) { return monthOf(t.date) === ym; }); }
+  function parseSigned(s) {
+    s = String(s).replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+    s = s.replace(/[,，¥￥円\s]/g, '').replace(/[−ー－]/g, '-');
+    return /^-?\d+$/.test(s) ? parseInt(s, 10) : NaN;
+  }
+  function setIfIdle(sel, val) { var el = $(sel); if (document.activeElement !== el) el.value = val; }
+  function goalInfo(total) {
+    var g = data.goal;
+    if (!(g > 0)) return null;
+    var diff = g - total, pct = total / g * 100;
+    return { goal: g, diff: diff, over: diff < 0, pct: pct, cls: diff < 0 ? 'over' : pct >= 80 ? 'warn' : 'ok' };
+  }
+  function ruleTips(total, cm, pmap, hasPrev) {
+    if (!total) return ['記録を追加すると、ここにチェックが出ます。'];
+    var gi = goalInfo(total), tips = [];
+    var ids = Object.keys(cm).sort(function (a, b) { return cm[b] - cm[a]; });
+    var top = ids[0];
+    if (!gi) tips.push('月の目標金額を設定すると、残りとオーバーを確認できます。');
+    else if (gi.over) tips.push('目標を ' + yen(-gi.diff) + ' 超えています。いちばん大きい「' + catInfo(top).name + '」（' + yen(cm[top]) + '）から見直すと効果的です。');
+    else tips.push('目標まであと ' + yen(gi.diff) + '。' + (gi.pct >= 80 ? '使いすぎないよう、ペースに気をつけましょう。' : 'いまのところ順調です。'));
+    if (hasPrev) {
+      var best = null;
+      ids.forEach(function (id) { var d = cm[id] - (pmap[id] || 0); if (!best || d > best.d) best = { id: id, d: d }; });
+      if (best && best.d > 0) tips.push('「' + catInfo(best.id).name + '」が前月より ' + yen(best.d) + ' 増えています。');
+    }
+    tips.push('「' + catInfo(top).name + '」が支出の ' + Math.round(cm[top] / total * 100) + '% を占めています。');
+    return tips.slice(0, 3);
+  }
+  function renderGoal(ym, total, cm, pmap, hasPrev) {
+    var gi = goalInfo(total), isNow = ym === todayStr().slice(0, 7), h = '';
+    if (!gi) {
+      h = '<p class="muted" style="margin-bottom:4px">月の目標金額を入れると、残りとオーバーがここに表示されます。</p>';
+    } else {
+      h = '<div class="gstats">' +
+        '<div class="gs"><div class="lab">目標</div><div class="val num">' + yen(gi.goal) + '</div></div>' +
+        '<div class="gs"><div class="lab">使った額</div><div class="val num">' + yen(total) + '</div></div>' +
+        '<div class="gs ' + (gi.over ? 'over' : 'ok') + '"><div class="lab">' + (gi.over ? 'オーバー' : '残り') + '</div><div class="val num">' + (gi.over ? '−' + yen(-gi.diff) : yen(gi.diff)) + '</div></div></div>' +
+        '<div class="gbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.min(100, Math.round(gi.pct)) + '" aria-label="目標に対する使用割合"><div class="gfill ' + gi.cls + '" style="width:' + Math.min(100, gi.pct).toFixed(1) + '%"></div></div>' +
+        '<div class="gticks"><span>¥0</span><span class="num">目標の' + Math.round(gi.pct) + '%を使用</span><span class="num">' + yen(gi.goal) + '</span></div>' +
+        '<p class="gmsg"><span class="delta ' + (gi.over ? 'up' : 'down') + '">' + (gi.over ? '▲ −' + yen(-gi.diff) + ' オーバー' : '○ 目標内 あと ' + yen(gi.diff)) + '</span></p>';
+      if (isNow) {
+        var left = daysInMonth(ym) - new Date().getDate() + 1;
+        h += gi.over
+          ? '<p class="gpace">今月はすでに目標を超えています。来月に向けて、項目別を見直してみましょう。</p>'
+          : '<p class="gpace">今日を含めて残り' + left + '日。1日あたり ' + yen(Math.floor(gi.diff / left)) + ' までなら目標内です。</p>';
+      }
+    }
+    $('#gStatus').innerHTML = h;
+    setIfIdle('#gInput', data.goal > 0 ? String(data.goal) : '');
+    $('#tips').innerHTML = ruleTips(total, cm, pmap, hasPrev).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('');
+  }
+  function renderBalance(ym) {
+    var b = data.balances[ym], pb = data.balances[shiftMonth(ym, -1)];
+    $('#balVal').textContent = b != null ? sy(b) : '未入力';
+    $('#balHint').textContent = '自動では計算しません。通帳や財布を見て、ご自身で入力してください。' + (b == null && pb != null ? '（前月の残金は ' + sy(pb) + '）' : '');
+    setIfIdle('#bInput', b != null ? String(b) : '');
+  }
+
+  /* ---------- year view ---------- */
+  function niceAxis(max) {
+    if (max <= 0) return { max: 10000, step: 5000 };
+    var raw = max / 4, p = Math.pow(10, Math.floor(Math.log10(raw))), n = raw / p;
+    var m = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10, step = m * p;
+    return { step: step, max: Math.ceil(max / step) * step };
+  }
+  function fmtAxis(v) { return v === 0 ? '0' : v >= 10000 ? (v / 10000) + '万' : v.toLocaleString('ja-JP'); }
+
+  function renderYear() {
+    var y = cursor.slice(0, 4), yn = +y, nowY = todayStr().slice(0, 4);
+    var mt = [], byM = [], m, i;
+    for (m = 1; m <= 12; m++) { mt.push(0); byM.push({}); }
+    data.tx.forEach(function (t) {
+      if (t.date.slice(0, 4) !== y) return;
+      var mi = +t.date.slice(5, 7) - 1;
+      mt[mi] += t.amount; byM[mi][t.cat] = (byM[mi][t.cat] || 0) + t.amount;
+    });
+    var total = mt.reduce(function (a, b) { return a + b; }, 0);
+    var pyTotal = yearTotal(yn - 1);
+
+    var h = '<div class="hero-lab">' + y + '年の支出</div><div class="hero-val num">' + yen(total) + '</div>';
+    if (pyTotal > 0) {
+      var diff = total - pyTotal;
+      h += '<div class="hero-cmp"><span>前年比</span>' + delta(diff) + '<span class="pct num">' + pctText(diff, pyTotal) + '</span></div>';
+      if (y === nowY) h += '<p class="hero-note">今年はまだ途中なので、年末までは前年より少なく見えます。</p>';
+    } else {
+      h += '<p class="hero-note">前年の記録がないため、前年比はまだありません。</p>';
+    }
+    if (data.goal > 0) {
+      var okN = 0, overN = 0;
+      mt.forEach(function (v) { if (v > 0) { if (v > data.goal) overN++; else okN++; } });
+      h += '<p class="hero-note">月の目標 ' + yen(data.goal) + '：目標内 ' + okN + 'か月、オーバー ' + overN + 'か月</p>';
+    }
+    $('#yHero').innerHTML = h;
+
+    var withData = [];
+    mt.forEach(function (v, idx) { if (v > 0) withData.push(idx); });
+    var tiles;
+    if (withData.length) {
+      var mxI = withData[0], mnI = withData[0];
+      withData.forEach(function (idx) { if (mt[idx] > mt[mxI]) mxI = idx; if (mt[idx] < mt[mnI]) mnI = idx; });
+      tiles = '<div class="tile t1"><div class="lab">1か月の平均</div><div class="val num">' + yen(total / withData.length) + '</div><div class="s">記録のある' + withData.length + 'か月の平均</div></div>' +
+        '<div class="tile t2"><div class="lab">いちばん多い月</div><div class="val num">' + (mxI + 1) + '月 ' + yen(mt[mxI]) + '</div><div class="s">使いすぎに注意</div></div>' +
+        '<div class="tile t3"><div class="lab">いちばん少ない月</div><div class="val num">' + (mnI + 1) + '月 ' + yen(mt[mnI]) + '</div><div class="s">この調子</div></div>';
+    } else {
+      tiles = '<div class="tile t1"><div class="lab">1か月の平均</div><div class="val">—</div></div><div class="tile t2"><div class="lab">いちばん多い月</div><div class="val">—</div></div><div class="tile t3"><div class="lab">いちばん少ない月</div><div class="val">—</div></div>';
+    }
+    $('#yTiles').innerHTML = tiles;
+
+    /* stacked bars */
+    var axis = niceAxis(Math.max(Math.max.apply(null, mt), data.goal > 0 ? data.goal * 1.05 : 0));
+    var goalLine = data.goal > 0 ? '<div class="ygoal" style="bottom:' + (data.goal / axis.max * 100).toFixed(2) + '%"><span>目標 ' + yen(data.goal) + '</span></div>' : '';
+    var order = data.cats.map(function (c) { return c.id; });
+    var grid = '', ticks = '<div class="ytick" style="bottom:0%">0</div>';
+    for (var v = axis.step; v <= axis.max + 0.001; v += axis.step) {
+      var pc = v / axis.max * 100;
+      grid += '<div class="ygrid" style="bottom:' + pc.toFixed(2) + '%"></div>';
+      ticks += '<div class="ytick" style="bottom:' + pc.toFixed(2) + '%">' + fmtAxis(v) + '</div>';
+    }
+    var cols = '', labels = '';
+    for (m = 1; m <= 12; m++) {
+      i = m - 1;
+      var ids = Object.keys(byM[i]).sort(function (a, b) {
+        var ia = order.indexOf(a), ib = order.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+      });
+      var segs = ids.map(function (id) { return '<span class="seg-bar" style="flex-grow:' + byM[i][id] + ';background:' + catInfo(id).color + '"></span>'; }).join('');
+      cols += '<button class="ycol" type="button" data-m="' + m + '" aria-label="' + m + '月 ' + yen(mt[i]) + '" title="' + m + '月 ' + yen(mt[i]) + '">' +
+        (mt[i] > 0 ? '<span class="bar" style="height:' + (mt[i] / axis.max * 100).toFixed(2) + '%">' + segs + '</span>' : '') + '</button>';
+      labels += '<span class="yl' + (y === nowY && m === +todayStr().slice(5, 7) ? ' now' : '') + '">' + m + '月</span>';
+    }
+    $('#yChart').innerHTML = '<div class="ychart"><div class="yaxis">' + ticks + '</div><div class="yplot">' + grid + '<div class="ycols">' + cols + '</div>' + goalLine + '</div><div></div><div class="ylabels">' + labels + '</div></div>';
+
+    /* month table */
+    var rows = '';
+    for (m = 1; m <= 12; m++) {
+      i = m - 1;
+      var t = mt[i], pt = m > 1 ? mt[i - 1] : monthTotal((yn - 1) + '-12');
+      var d = (t > 0 && pt > 0) ? t - pt : null;
+      var gl = [], bal = data.balances[y + '-' + pad(m)];
+      if (data.goal > 0 && t > 0) gl.push(t > data.goal ? '<span class="g-over">目標 −' + yen(t - data.goal) + ' オーバー</span>' : '<span class="g-ok">目標まで あと ' + yen(data.goal - t) + '</span>');
+      if (bal != null) gl.push('<span class="g-bal">残金 ' + sy(bal) + '</span>');
+      rows += '<li><button class="yrow' + (t > 0 ? '' : ' zero') + '" type="button" data-m="' + m + '"><span class="ym">' + m + '月</span><span class="yamt num">' + (t > 0 ? yen(t) : '—') + '</span>' + delta(d) +
+        (gl.length ? '<span class="gline num">' + gl.join('') + '</span>' : '') + '</button></li>';
+    }
+    $('#yTable').innerHTML = rows;
+
+    var cy = catMap(function (t) { return t.date.slice(0, 4) === y; });
+    var list = Object.keys(cy).map(function (id) { var c = catInfo(id); return { id: id, name: c.name, color: c.color, amount: cy[id] }; });
+    list.sort(function (a, b) { return b.amount - a.amount; });
+    selY = drawPie($('#yPie'), $('#yLegend'), list, total, selY, '年間合計', 'この年の記録はまだありません。');
+  }
+
+  /* ---------- shared render ---------- */
+  function setSeg(sel, attr, val) {
+    document.querySelectorAll(sel + ' button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset[attr] === val)); });
+  }
+  function renderNav() {
+    var p = cursor.split('-');
+    $('#periodLabel').textContent = mode === 'month' ? p[0] + '年' + (+p[1]) + '月' : p[0] + '年';
+    var nowYm = todayStr().slice(0, 7);
+    var away = mode === 'month' ? cursor !== nowYm : cursor.slice(0, 4) !== nowYm.slice(0, 4);
+    $('#goNow').hidden = !away;
+    $('#goNow').textContent = mode === 'month' ? '今月へ' : '今年へ';
+    setSeg('#modeSeg', 'mode', mode);
+  }
+  function renderAll() {
+    renderNav();
+    $('#monthView').hidden = mode !== 'month';
+    $('#yearView').hidden = mode !== 'year';
+    $('#sampleBanner').hidden = !data.tx.some(function (t) { return t.sample; });
+    if (mode === 'month') renderMonth(); else renderYear();
+  }
+  function renderFormCats() {
+    var sel = $('#fCat'), prev = sel.value;
+    sel.innerHTML = data.cats.map(function (c) { return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>'; }).join('');
+    if (data.cats.some(function (c) { return c.id === prev; })) sel.value = prev;
+  }
+  function defaultSwatch() {
+    var used = data.cats.map(function (c) { return c.color; });
+    for (var i = 0; i < PALETTE.length; i++) if (used.indexOf(PALETTE[i]) < 0) return PALETTE[i];
+    return PALETTE[0];
+  }
+  function renderCats() {
+    $('#catList').innerHTML = data.cats.map(function (c) {
+      return '<span class="chip"><span class="dot" style="background:' + c.color + '"></span>' + esc(c.name) +
+        '<button type="button" data-delcat="' + esc(c.id) + '" aria-label="' + esc(c.name) + 'を削除">×</button></span>';
+    }).join('');
+    if (!swatch) swatch = defaultSwatch();
+    $('#swatches').innerHTML = PALETTE.map(function (c) {
+      return '<button type="button" data-color="' + c + '" style="background:' + c + '" aria-pressed="' + (c === swatch) + '" aria-label="色 ' + c + '"></button>';
+    }).join('');
+  }
+  function defaultDate() { return cursor === todayStr().slice(0, 7) ? todayStr() : cursor + '-01'; }
+  function showToast(msg, canUndo) {
+    $('#toastMsg').textContent = msg; $('#undo').hidden = !canUndo; $('#toast').hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { $('#toast').hidden = true; lastDeleted = null; }, 5000);
+  }
+
+  /* ---------- events ---------- */
+  function go(delta12) {
+    cursor = shiftMonth(cursor, delta12); selM = null; selY = null;
+    var d = $('#fDate').value; if (!d || monthOf(d) !== cursor) $('#fDate').value = defaultDate();
+    renderAll();
+  }
+  $('#prev').addEventListener('click', function () { go(mode === 'month' ? -1 : -12); });
+  $('#next').addEventListener('click', function () { go(mode === 'month' ? 1 : 12); });
+  $('#goNow').addEventListener('click', function () {
+    cursor = todayStr().slice(0, 7);
+    selM = null; selY = null; $('#fDate').value = defaultDate(); renderAll();
+  });
+  $('#modeSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    mode = b.dataset.mode; renderAll();
+  });
+
+  function bindPie(wrapSel, legSel, getSel, setSel) {
+    function toggle(id) { setSel(getSel() === id ? null : id); renderAll(); }
+    $(wrapSel).addEventListener('click', function (e) { var s = e.target.closest('.slice'); if (s) toggle(s.getAttribute('data-id')); });
+    $(wrapSel).addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      var s = e.target.closest('.slice'); if (!s) return; e.preventDefault(); toggle(s.getAttribute('data-id'));
+    });
+    $(legSel).addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) toggle(b.dataset.id); });
+  }
+  bindPie('#mChart', '#mLegend', function () { return selM; }, function (v) { selM = v; });
+  bindPie('#yPie', '#yLegend', function () { return selY; }, function (v) { selY = v; });
+
+  function openMonth(e) {
+    var b = e.target.closest('[data-m]'); if (!b) return;
+    cursor = cursor.slice(0, 4) + '-' + pad(+b.dataset.m);
+    mode = 'month'; selM = null; $('#fDate').value = defaultDate();
+    renderAll(); window.scrollTo(0, 0);
+  }
+  $('#yChart').addEventListener('click', openMonth);
+  $('#yTable').addEventListener('click', openMonth);
+
+  function parseAmount(s) {
+    s = String(s).replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+    s = s.replace(/[,，¥￥円\s]/g, '');
+    return /^\d+$/.test(s) ? parseInt(s, 10) : NaN;
+  }
+  $('#txForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var err = $('#fErr'); err.textContent = '';
+    var date = $('#fDate').value, amount = parseAmount($('#fAmount').value), cat = $('#fCat').value;
+    if (!date) { err.textContent = '日付を入力してください。'; return; }
+    if (!cat) { err.textContent = '項目がありません。「項目の管理」から追加してください。'; return; }
+    if (!isFinite(amount) || amount <= 0) { err.textContent = '金額は1円以上の数字で入力してください。'; $('#fAmount').focus(); return; }
+    if (amount > 999999999) { err.textContent = '金額が大きすぎます。'; return; }
+    data.tx.push({ id: uid(), date: date, cat: cat, amount: amount, memo: $('#fMemo').value.trim() });
+    save();
+    $('#fAmount').value = ''; $('#fMemo').value = '';
+    cursor = monthOf(date); selM = null;
+    renderAll(); $('#fAmount').focus();
+  });
+  $('#txList').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-del]'); if (!b) return;
+    var i = data.tx.findIndex(function (t) { return t.id === b.dataset.del; });
+    if (i < 0) return;
+    lastDeleted = data.tx.splice(i, 1)[0];
+    save(); renderAll(); showToast('記録を削除しました', true);
+  });
+  $('#undo').addEventListener('click', function () {
+    if (lastDeleted) { data.tx.push(lastDeleted); lastDeleted = null; save(); renderAll(); }
+    $('#toast').hidden = true;
+  });
+  $('#clearSample').addEventListener('click', function () {
+    data.tx = data.tx.filter(function (t) { return !t.sample; });
+    save(); renderAll();
+  });
+
+  $('#swatches').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    swatch = b.dataset.color; renderCats();
+  });
+  $('#catForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var err = $('#catErr'); err.textContent = '';
+    var name = $('#catName').value.trim();
+    if (!name) { err.textContent = '項目の名前を入力してください。'; return; }
+    if (data.cats.some(function (c) { return c.name === name; })) { err.textContent = '同じ名前の項目がすでにあります。'; return; }
+    var c = { id: uid(), name: name, color: swatch || defaultSwatch() };
+    data.cats.push(c); save();
+    $('#catName').value = ''; swatch = null;
+    renderFormCats(); $('#fCat').value = c.id; renderCats();
+  });
+  $('#catList').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-delcat]'); if (!b) return;
+    var id = b.dataset.delcat, c = catById(id), err = $('#catErr');
+    if (data.tx.some(function (t) { return t.cat === id; })) { err.textContent = '「' + c.name + '」は記録で使われているため削除できません。先に記録を削除してください。'; return; }
+    data.cats = data.cats.filter(function (x) { return x.id !== id; });
+    err.textContent = ''; save(); renderFormCats(); renderCats();
+  });
+
+  $('#goalForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var err = $('#gErr'); err.textContent = '';
+    var raw = $('#gInput').value.trim();
+    if (raw === '') { data.goal = 0; }
+    else {
+      var v = parseAmount(raw);
+      if (!isFinite(v)) { err.textContent = '目標金額は0以上の数字で入力してください。'; return; }
+      if (v > 999999999) { err.textContent = '金額が大きすぎます。'; return; }
+      data.goal = v;
+    }
+    save();
+    $('#gInput').blur(); renderAll();
+    showToast(data.goal > 0 ? '目標金額を保存しました' : '目標を解除しました', false);
+  });
+  $('#balForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var err = $('#bErr'); err.textContent = '';
+    var raw = $('#bInput').value.trim();
+    if (raw === '') { delete data.balances[cursor]; }
+    else {
+      var v = parseSigned(raw);
+      if (!isFinite(v)) { err.textContent = '残金は数字で入力してください。マイナスは「-」を付けます。'; return; }
+      if (Math.abs(v) > 9999999999) { err.textContent = '金額が大きすぎます。'; return; }
+      data.balances[cursor] = v;
+    }
+    save(); $('#bInput').blur(); renderAll();
+    showToast(raw === '' ? '残金を消しました' : '残金を保存しました', false);
+  });
+
+  /* ---------- init ---------- */
+  $('#fDate').value = todayStr();
+  renderFormCats(); renderCats(); renderAll();
+})();
+</script>
+</body>
+</html>
