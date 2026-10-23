@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icon-180.png?v=2">
+<link rel="apple-touch-icon" href="icon-180.png">
 <meta name="theme-color" content="#7c4dff">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -217,6 +217,10 @@ details[open] summary { margin-bottom: 12px; }
 .yrow .ym { font-weight: 700; }
 .yrow .yamt { text-align: right; font-weight: 700; }
 .yrow.zero .yamt { color: var(--muted); font-weight: 500; }
+
+.chip.confirm { padding: 3px 4px 3px 12px; background: var(--up-bg); color: var(--up-fg); gap: 8px; flex-wrap: wrap; }
+.chip.confirm button { width: auto; height: auto; padding: 2px 12px; border: 2px solid var(--ink); border-radius: 999px; background: var(--surface); color: var(--fg); font-size: 13px; }
+.chip.confirm button.yes { background: var(--accent); color: var(--accent-fg); }
 
 /* goal + balance */
 .pair { display: flex; flex-direction: column; gap: 18px; }
@@ -494,6 +498,7 @@ details[open] summary { margin-bottom: 12px; }
   var cursor = todayStr().slice(0, 7);
   var selM = null, selY = null;
   var swatch = null;
+  var pendingDel = null;
   var lastDeleted = null, toastTimer = null;
 
   function catById(id) { return data.cats.filter(function (c) { return c.id === id; })[0]; }
@@ -780,6 +785,10 @@ details[open] summary { margin-bottom: 12px; }
   }
   function renderCats() {
     $('#catList').innerHTML = data.cats.map(function (c) {
+      if (c.id === pendingDel) {
+        return '<span class="chip confirm" role="alertdialog" aria-label="' + esc(c.name) + 'を削除しますか？"><span>「' + esc(c.name) + '」を削除しますか？</span>' +
+          '<button type="button" class="yes" data-delyes="' + esc(c.id) + '">削除する</button><button type="button" data-delno="1">やめる</button></span>';
+      }
       return '<span class="chip"><span class="dot" style="background:' + c.color + '"></span>' + esc(c.name) +
         '<button type="button" data-delcat="' + esc(c.id) + '" aria-label="' + esc(c.name) + 'を削除">×</button></span>';
     }).join('');
@@ -884,11 +893,19 @@ details[open] summary { margin-bottom: 12px; }
     renderFormCats(); $('#fCat').value = c.id; renderCats();
   });
   $('#catList').addEventListener('click', function (e) {
+    var err = $('#catErr');
+    if (e.target.closest('[data-delno]')) { pendingDel = null; err.textContent = ''; renderCats(); return; }
+    var yes = e.target.closest('[data-delyes]');
+    if (yes) {
+      var yid = yes.dataset.delyes;
+      data.cats = data.cats.filter(function (x) { return x.id !== yid; });
+      pendingDel = null; err.textContent = ''; save(); renderFormCats(); renderCats();
+      return;
+    }
     var b = e.target.closest('[data-delcat]'); if (!b) return;
-    var id = b.dataset.delcat, c = catById(id), err = $('#catErr');
-    if (data.tx.some(function (t) { return t.cat === id; })) { err.textContent = '「' + c.name + '」は記録で使われているため削除できません。先に記録を削除してください。'; return; }
-    data.cats = data.cats.filter(function (x) { return x.id !== id; });
-    err.textContent = ''; save(); renderFormCats(); renderCats();
+    var id = b.dataset.delcat, c = catById(id);
+    if (data.tx.some(function (t) { return t.cat === id; })) { pendingDel = null; err.textContent = '「' + c.name + '」は記録で使われているため削除できません。先に記録を削除してください。'; renderCats(); return; }
+    err.textContent = ''; pendingDel = id; renderCats();
   });
 
   $('#goalForm').addEventListener('submit', function (e) {
