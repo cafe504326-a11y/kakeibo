@@ -174,7 +174,7 @@ input:focus-visible, select:focus-visible { outline: 3px solid var(--accent); ou
 /* list */
 .day { margin: 0; padding: 12px 0 4px; font-size: 12px; color: var(--muted); font-weight: 700; }
 .rows { list-style: none; margin: 0; padding: 0; }
-.row { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto 34px; align-items: center; gap: 10px; padding: 8px 0; border-top: 2px dotted var(--line); }
+.row { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto auto 34px; align-items: center; gap: 10px; padding: 8px 0; border-top: 2px dotted var(--line); }
 .row .cn { font-weight: 700; }
 .row .memo { display: block; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 .row .amt { font-weight: 700; text-align: right; }
@@ -226,6 +226,11 @@ details[open] summary { margin-bottom: 12px; }
 .row.rconfirm .memo { color: inherit; font-weight: 700; }
 .rbtns { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 .btn.small.yes { background: var(--accent); color: var(--accent-fg); }
+
+.icon-btn.txt { width: auto; padding: 0 8px; font-size: 12px; font-weight: 700; color: var(--fg); border-color: var(--line); }
+.row.redit { display: block; padding: 10px 0; }
+.eform { display: flex; flex-direction: column; gap: 10px; background: var(--surface-2); border: 2px solid var(--ink); border-radius: 14px; padding: 12px; }
+.eform .ef { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
 
 /* goal + balance */
 .pair { display: flex; flex-direction: column; gap: 18px; }
@@ -541,7 +546,7 @@ details[open] summary { margin-bottom: 12px; }
   var cursor = todayStr().slice(0, 7);
   var selM = null, selY = null;
   var swatch = null;
-  var pendingDel = null, pendingTx = null, clearArmed = false;
+  var pendingDel = null, pendingTx = null, clearArmed = false, editTx = null;
   var lastDeleted = null, toastTimer = null;
 
   function catById(id) { return data.cats.filter(function (c) { return c.id === id; })[0]; }
@@ -638,9 +643,22 @@ details[open] summary { margin-bottom: 12px; }
           '<span class="rbtns"><button type="button" class="btn small yes" data-txyes="' + esc(t.id) + '">削除する</button><button type="button" class="btn small" data-txno="1">やめる</button></span></li>';
         return;
       }
+      if (t.id === editTx) {
+        html += '<li class="row redit"><form class="eform" data-eid="' + esc(t.id) + '" novalidate>' +
+          '<div class="ef">' +
+          '<label>日付<input type="date" class="e-date" value="' + esc(t.date) + '"></label>' +
+          '<label>金額（円）<input type="text" inputmode="numeric" class="e-amount" value="' + t.amount + '" autocomplete="off"></label>' +
+          '<label>項目<select class="e-cat">' + data.cats.map(function (k) { return '<option value="' + esc(k.id) + '"' + (k.id === t.cat ? ' selected' : '') + '>' + esc(k.name) + '</option>'; }).join('') + '</select></label>' +
+          '<label>メモ<input type="text" class="e-memo" maxlength="40" value="' + esc(t.memo || '') + '" autocomplete="off"></label>' +
+          '</div><p class="err e-err" role="alert"></p>' +
+          '<div class="rbtns"><button type="submit" class="btn small yes">保存</button><button type="button" class="btn small" data-editno="1">やめる</button></div>' +
+          '</form></li>';
+        return;
+      }
       html += '<li class="row"><span class="dot" style="background:' + c.color + '"></span>' +
         '<div><span class="cn">' + esc(c.name) + '</span>' + (t.memo ? '<span class="memo">' + esc(t.memo) + '</span>' : '') + '</div>' +
         '<span class="amt num">' + yen(t.amount) + '</span>' +
+        '<button class="icon-btn txt" type="button" data-edit="' + esc(t.id) + '" aria-label="この記録を修正">修正</button>' +
         '<button class="icon-btn" type="button" data-del="' + esc(t.id) + '" aria-label="この記録を削除">×</button></li>';
     });
     box.innerHTML = html + '</ul>';
@@ -854,7 +872,7 @@ details[open] summary { margin-bottom: 12px; }
 
   /* ---------- events ---------- */
   function go(delta12) {
-    cursor = shiftMonth(cursor, delta12); selM = null; selY = null; pendingTx = null;
+    cursor = shiftMonth(cursor, delta12); selM = null; selY = null; pendingTx = null; editTx = null;
     var d = $('#fDate').value; if (!d || monthOf(d) !== cursor) $('#fDate').value = defaultDate();
     renderAll();
   }
@@ -910,6 +928,13 @@ details[open] summary { margin-bottom: 12px; }
     renderAll(); $('#fAmount').focus();
   });
   $('#txList').addEventListener('click', function (e) {
+    if (e.target.closest('[data-editno]')) { editTx = null; renderAll(); return; }
+    var eb = e.target.closest('[data-edit]');
+    if (eb) {
+      editTx = eb.dataset.edit; pendingTx = null; renderAll();
+      var ai = document.querySelector('.eform .e-amount'); if (ai) ai.focus();
+      return;
+    }
     if (e.target.closest('[data-txno]')) { pendingTx = null; renderAll(); return; }
     var yes = e.target.closest('[data-txyes]');
     if (yes) {
@@ -921,11 +946,27 @@ details[open] summary { margin-bottom: 12px; }
       return;
     }
     var b = e.target.closest('[data-del]'); if (!b) return;
-    pendingTx = b.dataset.del; renderAll();
+    pendingTx = b.dataset.del; editTx = null; renderAll();
   });
   $('#undo').addEventListener('click', function () {
     if (lastDeleted) { data.tx.push(lastDeleted); lastDeleted = null; save(); renderAll(); }
     $('#toast').hidden = true;
+  });
+  $('#txList').addEventListener('submit', function (e) {
+    var f = e.target.closest('.eform'); if (!f) return;
+    e.preventDefault();
+    var err = f.querySelector('.e-err'); err.textContent = '';
+    var t = data.tx.filter(function (x) { return x.id === f.dataset.eid; })[0];
+    if (!t) { editTx = null; renderAll(); return; }
+    var date = f.querySelector('.e-date').value, amount = parseAmount(f.querySelector('.e-amount').value), cat = f.querySelector('.e-cat').value;
+    if (!date) { err.textContent = '日付を入力してください。'; return; }
+    if (!cat) { err.textContent = '項目を選んでください。'; return; }
+    if (!isFinite(amount) || amount <= 0) { err.textContent = '金額は1円以上の数字で入力してください。'; return; }
+    if (amount > 999999999) { err.textContent = '金額が大きすぎます。'; return; }
+    t.date = date; t.amount = amount; t.cat = cat; t.memo = f.querySelector('.e-memo').value.trim();
+    delete t.sample;
+    save(); editTx = null; cursor = monthOf(date); selM = null;
+    renderAll(); showToast('記録を修正しました', false);
   });
   function syncClearUi() {
     $('#sampleMsg').textContent = clearArmed ? '例の記録をすべて削除しますか？（自分で追加した記録は残ります）' : '表示中の記録は例です。自由に編集して使えます。';
