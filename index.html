@@ -274,6 +274,40 @@ details[open] summary { margin-bottom: 12px; }
     </div>
   </header>
 
+  <div id="syncSlot" style="display:flex;flex-direction:column;gap:12px">
+    <div class="banner" id="syncBar">
+      <span id="syncText"></span>
+      <span class="rbtns">
+        <button class="btn small" id="syncOpen" type="button">ログイン・新規登録</button>
+        <button class="btn small" id="syncPull" type="button" hidden>最新を読み込む</button>
+        <button class="btn small" id="syncRetry" type="button" hidden>再送する</button>
+        <button class="btn small" id="syncOut" type="button" hidden>ログアウト</button>
+        <button class="btn small yes" id="outYes" type="button" hidden>ログアウトする</button>
+        <button class="btn small" id="outNo" type="button" hidden>やめる</button>
+      </span>
+    </div>
+    <form class="card" id="syncPanel" hidden novalidate>
+      <h2>クラウドに保存</h2>
+      <p class="muted" style="margin-bottom:12px">メールは不要です。合言葉（6文字以上）だけで、スマホとパソコンの記録をそろえられます。合言葉を忘れると、記録を取り出せません。人に知られにくい合言葉にしてください。</p>
+      <label for="syncPass">合言葉<input id="syncPass" type="password" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <p class="err" id="syncErr" role="alert" style="margin-top:10px"></p>
+      <div class="rbtns" style="justify-content:flex-start;margin-top:12px">
+        <button class="btn primary" type="submit" id="syncLogin">ログイン</button>
+        <button class="btn" type="button" id="syncCreate">はじめて使う（新しく作る）</button>
+        <button class="btn small" type="button" id="syncClose">閉じる</button>
+      </div>
+    </form>
+    <div class="card" id="syncMerge" hidden>
+      <h2>この端末の記録があります</h2>
+      <p id="syncMergeText" style="margin:0 0 12px"></p>
+      <div class="rbtns" style="justify-content:flex-start">
+        <button class="btn primary" type="button" id="mergeAdd">クラウドに追加してログイン</button>
+        <button class="btn" type="button" id="mergeSkip">追加せずログイン</button>
+        <button class="btn small" type="button" id="mergeCancel">やめる</button>
+      </div>
+    </div>
+  </div>
+
       <form class="card" id="txForm" novalidate>
     <h2>支出を追加</h2>
     <div class="fields">
@@ -493,7 +527,11 @@ details[open] summary { margin-bottom: 12px; }
     var c0 = seedCats();
     return { cats: c0, tx: seedTx(c0) };
   }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {} }
+  function localSave() { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {} }
+  function save() {
+    localSave();
+    if (window.kakeiboSync && typeof window.kakeiboSync.changed === 'function') { try { window.kakeiboSync.changed(data); } catch (e) {} }
+  }
 
   var data = load();
   if (typeof data.goal !== 'number') data.goal = 0;
@@ -964,10 +1002,30 @@ details[open] summary { margin-bottom: 12px; }
     showToast(raw === '' ? '残金を消しました' : '残金を保存しました', false);
   });
 
+  /* ---------- hooks for cloud sync (used only when sync.js is loaded) ---------- */
+  function fixData() {
+    if (typeof data.goal !== 'number') data.goal = 0;
+    if (!data.balances || typeof data.balances !== 'object') data.balances = {};
+  }
+  function refreshAll() {
+    lastDeleted = null; pendingDel = null; pendingTx = null;
+    renderFormCats(); renderCats(); renderAll();
+    var d = $('#fDate'); if (d && (!d.value || monthOf(d.value) !== cursor)) d.value = defaultDate();
+  }
+  window.kakeiboApp = {
+    get: function () { return data; },
+    replace: function (d) { data = d; fixData(); localSave(); refreshAll(); },
+    reset: function () {
+      try { localStorage.removeItem(KEY); localStorage.removeItem(OLD); } catch (e) {}
+      data = load(); fixData(); localSave(); refreshAll();
+    }
+  };
+
   /* ---------- init ---------- */
   $('#fDate').value = todayStr();
   renderFormCats(); renderCats(); renderAll();
 })();
 </script>
+<script src="sync.js"></script>
 </body>
 </html>
