@@ -222,6 +222,11 @@ details[open] summary { margin-bottom: 12px; }
 .chip.confirm button { width: auto; height: auto; padding: 2px 12px; border: 2px solid var(--ink); border-radius: 999px; background: var(--surface); color: var(--fg); font-size: 13px; }
 .chip.confirm button.yes { background: var(--accent); color: var(--accent-fg); }
 
+.row.rconfirm { grid-template-columns: minmax(0, 1fr) auto; background: var(--up-bg); color: var(--up-fg); border: 2px solid var(--ink); border-radius: 12px; padding: 8px 10px; margin: 4px 0; }
+.row.rconfirm .memo { color: inherit; font-weight: 700; }
+.rbtns { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.btn.small.yes { background: var(--accent); color: var(--accent-fg); }
+
 /* goal + balance */
 .pair { display: flex; flex-direction: column; gap: 18px; }
 @media (min-width: 860px) { .pair { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); align-items: start; } }
@@ -296,8 +301,8 @@ details[open] summary { margin-bottom: 12px; }
   </div>
 
   <div class="banner" id="sampleBanner" hidden>
-    <span>表示中の記録は例です。自由に編集して使えます。</span>
-    <button class="btn small" id="clearSample" type="button">例の記録を消す</button>
+    <span id="sampleMsg">表示中の記録は例です。自由に編集して使えます。</span>
+    <span class="rbtns"><button class="btn small" id="clearSample" type="button">例の記録を消す</button><button class="btn small" id="clearNo" type="button" hidden>やめる</button></span>
   </div>
 
   <div id="monthView" style="display:flex;flex-direction:column;gap:18px">
@@ -498,7 +503,7 @@ details[open] summary { margin-bottom: 12px; }
   var cursor = todayStr().slice(0, 7);
   var selM = null, selY = null;
   var swatch = null;
-  var pendingDel = null;
+  var pendingDel = null, pendingTx = null, clearArmed = false;
   var lastDeleted = null, toastTimer = null;
 
   function catById(id) { return data.cats.filter(function (c) { return c.id === id; })[0]; }
@@ -590,6 +595,11 @@ details[open] summary { margin-bottom: 12px; }
     txs.forEach(function (t) {
       if (t.date !== curD) { if (curD) html += '</ul>'; curD = t.date; html += '<h3 class="day">' + dayLabel(t.date) + '</h3><ul class="rows">'; }
       var c = catInfo(t.cat);
+      if (t.id === pendingTx) {
+        html += '<li class="row rconfirm"><div><span class="cn">' + esc(c.name) + '　' + yen(t.amount) + '</span><span class="memo">この記録を削除しますか？</span></div>' +
+          '<span class="rbtns"><button type="button" class="btn small yes" data-txyes="' + esc(t.id) + '">削除する</button><button type="button" class="btn small" data-txno="1">やめる</button></span></li>';
+        return;
+      }
       html += '<li class="row"><span class="dot" style="background:' + c.color + '"></span>' +
         '<div><span class="cn">' + esc(c.name) + '</span>' + (t.memo ? '<span class="memo">' + esc(t.memo) + '</span>' : '') + '</div>' +
         '<span class="amt num">' + yen(t.amount) + '</span>' +
@@ -806,7 +816,7 @@ details[open] summary { margin-bottom: 12px; }
 
   /* ---------- events ---------- */
   function go(delta12) {
-    cursor = shiftMonth(cursor, delta12); selM = null; selY = null;
+    cursor = shiftMonth(cursor, delta12); selM = null; selY = null; pendingTx = null;
     var d = $('#fDate').value; if (!d || monthOf(d) !== cursor) $('#fDate').value = defaultDate();
     renderAll();
   }
@@ -862,20 +872,36 @@ details[open] summary { margin-bottom: 12px; }
     renderAll(); $('#fAmount').focus();
   });
   $('#txList').addEventListener('click', function (e) {
+    if (e.target.closest('[data-txno]')) { pendingTx = null; renderAll(); return; }
+    var yes = e.target.closest('[data-txyes]');
+    if (yes) {
+      var i = data.tx.findIndex(function (t) { return t.id === yes.dataset.txyes; });
+      pendingTx = null;
+      if (i < 0) { renderAll(); return; }
+      lastDeleted = data.tx.splice(i, 1)[0];
+      save(); renderAll(); showToast('記録を削除しました', true);
+      return;
+    }
     var b = e.target.closest('[data-del]'); if (!b) return;
-    var i = data.tx.findIndex(function (t) { return t.id === b.dataset.del; });
-    if (i < 0) return;
-    lastDeleted = data.tx.splice(i, 1)[0];
-    save(); renderAll(); showToast('記録を削除しました', true);
+    pendingTx = b.dataset.del; renderAll();
   });
   $('#undo').addEventListener('click', function () {
     if (lastDeleted) { data.tx.push(lastDeleted); lastDeleted = null; save(); renderAll(); }
     $('#toast').hidden = true;
   });
+  function syncClearUi() {
+    $('#sampleMsg').textContent = clearArmed ? '例の記録をすべて削除しますか？（自分で追加した記録は残ります）' : '表示中の記録は例です。自由に編集して使えます。';
+    $('#clearSample').textContent = clearArmed ? '削除する' : '例の記録を消す';
+    $('#clearSample').classList.toggle('yes', clearArmed);
+    $('#clearNo').hidden = !clearArmed;
+  }
   $('#clearSample').addEventListener('click', function () {
+    if (!clearArmed) { clearArmed = true; syncClearUi(); return; }
+    clearArmed = false; syncClearUi();
     data.tx = data.tx.filter(function (t) { return !t.sample; });
     save(); renderAll();
   });
+  $('#clearNo').addEventListener('click', function () { clearArmed = false; syncClearUi(); });
 
   $('#swatches').addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b) return;
